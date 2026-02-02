@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'home_nav.dart';
 
 class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
@@ -97,13 +98,16 @@ class LoginPage extends StatelessWidget {
 
                   const SizedBox(height: 14),
 
-                  // SIGN IN BUTTON
+                  // ✅ SIGN IN BUTTON → navigation.dart
                   SizedBox(
                     width: double.infinity,
                     height: 52,
                     child: ElevatedButton(
                       onPressed: () {
-                        // TODO: authenticate
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (_) => const HomeNav()),
+                        );
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
@@ -127,7 +131,7 @@ class LoginPage extends StatelessWidget {
                   Center(
                     child: GestureDetector(
                       onTap: () {
-                        Navigator.pop(context); // back to signup choice
+                        Navigator.pop(context);
                       },
                       child: const Text(
                         "Don't have an account?\nSign up",
