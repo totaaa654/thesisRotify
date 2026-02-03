@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dashboard_content.dart';
+import 'settings.dart';
 
 class HomeNav extends StatefulWidget {
   const HomeNav({super.key});
@@ -14,7 +15,7 @@ class _HomeNavState extends State<HomeNav> {
   final List<Widget> _pages = const [
     DashboardContent(),
     HistoryContent(),
-    SettingsContent(),
+    SettingsPage(),
   ];
 
   @override
@@ -27,29 +28,31 @@ class _HomeNavState extends State<HomeNav> {
         children: [
           // ---------- HEADER ----------
           Container(
-            padding: const EdgeInsets.fromLTRB(20, 46, 20, 18),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 14, // compact header
+            ),
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [Color(0xFF004C22), Color(0xFF00B250)],
               ),
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(0),
-                bottomRight: Radius.circular(0),
-              ),
             ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Image.asset('assets/images/logo.png', width: 42),
-                const SizedBox(width: 12),
-                const Text(
-                  'ROTIFY',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.4,
+                // LOGO (moved left, NO SHADOW)
+                Transform.translate(
+                  offset: const Offset(-8, 0),
+                  child: Transform.scale(
+                    scale: 4.0,
+                    alignment: Alignment.centerLeft,
+                    child: Image.asset(
+                      'assets/images/full_logo.png',
+                      height: 29,
+                      fit: BoxFit.contain,
+                    ),
                   ),
                 ),
               ],
@@ -160,7 +163,7 @@ class _NavItem extends StatelessWidget {
 }
 
 // =================================================
-// PLACEHOLDER PAGES
+// HISTORY PLACEHOLDER
 // =================================================
 class HistoryContent extends StatelessWidget {
   const HistoryContent({super.key});
@@ -170,21 +173,6 @@ class HistoryContent extends StatelessWidget {
     return const Center(
       child: Text(
         'History\n(sensor logs later)',
-        textAlign: TextAlign.center,
-        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-      ),
-    );
-  }
-}
-
-class SettingsContent extends StatelessWidget {
-  const SettingsContent({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Text(
-        'Settings\n(profile, logout, thresholds)',
         textAlign: TextAlign.center,
         style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
       ),
