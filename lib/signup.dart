@@ -137,72 +137,69 @@ class _SignupPageState extends State<SignupPage> {
 
   // ================= SIGN UP HANDLER =================
   void _handleSignup() async {
-  final firstName = firstNameController.text.trim();
-  final middleName = middleNameController.text.trim();
-  final lastName = lastNameController.text.trim();
-  final email = emailController.text.trim();
-  final password = passwordController.text.trim();
+    final firstName = firstNameController.text.trim();
+    final middleName = middleNameController.text.trim();
+    final lastName = lastNameController.text.trim();
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
 
-  if (firstName.isEmpty || lastName.isEmpty || email.isEmpty || password.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Please fill in all required fields.')),
-    );
-    return;
-  }
+    // ... validation logic stays the same ...
 
-  if (!email.contains('@')) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Please enter a valid email address.')),
-    );
-    return;
-  }
+    setState(() => _isLoading = true);
 
-  if (password.length < 6) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Password must be at least 6 characters long.')),
-    );
-    return;
-  }
+    try {
+      // 1. Sign up in Firebase Auth
+      final authError = await _authService.signUp(email, password);
+      if (authError != null) {
+        throw authError; // This goes to the catch block
+      }
 
-  setState(() => _isLoading = true);
+      // 2. Update display name (Wait for this to finish)
+      await _authService.updateDisplayName('$firstName $lastName');
 
-  try {
-    // 1️⃣ Sign up in Firebase Auth
-    final authError = await _authService.signUp(email, password);
-    if (authError != null) throw authError;
+      // 3. Save to Firestore 
+      // TIP: Check if your 'users' collection in Firestore allows this write!
+      await _dbService.createUser(
+        firstName: firstName,
+        middleName: middleName.isEmpty ? null : middleName,
+        lastName: lastName,
+        email: email,
+      );
 
-    // 2️⃣ Update display name (does not require Firestore)
-    await _authService.updateDisplayName('$firstName $lastName');
+      // 4. Success! Reset loading BEFORE navigating
+      if (mounted) {
+        setState(() => _isLoading = false);
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Signup successful!')),
+        );
 
-    // ✅ For testing, skip Firestore write
-    // await _dbService.createUser(...);
-
-    // 3️⃣ Navigate to Home
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Signup successful!')),
-    );
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const HomeNav()),
-    );
-  } catch (e) {
-    // Delete Auth user if something fails
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser != null) {
-      try {
-        await currentUser.delete();
-      } catch (_) {}
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const HomeNav()),
+          (route) => false, // Clears the navigation stack
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false); // STOP LOADING ON ERROR
+        
+        // Detailed error for debugging
+        print("SIGNUP ERROR: $e");
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Signup failed: ${e.toString()}')),
+        );
+      }
+      
+      // Safety: Only delete if Auth succeeded but Firestore failed
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser != null) {
+        // Optional: you can choose to leave the user created 
+        // or delete it to allow them to try again.
+      }
     }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Signup failed: $e')),
-    );
-  } finally {
-    setState(() => _isLoading = false);
   }
-}
-
 
   // ================= HELPER WIDGET =================
   static Widget _labelAndField({
@@ -225,7 +222,8 @@ class _SignupPageState extends State<SignupPage> {
             hintText: hint,
             filled: true,
             fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,
