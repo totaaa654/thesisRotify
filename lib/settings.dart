@@ -49,7 +49,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             Switch(
               value: notificationsEnabled,
-              activeColor: const Color(0xFF00B250),
+              activeThumbColor: const Color(0xFF00B250),
               onChanged: (value) {
                 setState(() => notificationsEnabled = value);
               },
