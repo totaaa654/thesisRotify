@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart'; // Needed for Firebase.app()
 import 'package:firebase_database/firebase_database.dart';
+import 'constants.dart'; // Import the file with the shared URL
 
 class DashboardContent extends StatelessWidget {
   const DashboardContent({super.key});
@@ -11,17 +13,17 @@ class DashboardContent extends StatelessWidget {
       DishCardData(
         name: 'CHICKEN CURRY',
         imagePath: 'assets/images/chicken_curry.png',
-        containerKey: 'container1', // This looks at container1 in Firebase
+        containerKey: 'container1', 
       ),
       DishCardData(
         name: 'BICOL EXPRESS',
         imagePath: 'assets/images/bicol_express.png',
-        containerKey: 'container2', // This looks at container2
+        containerKey: 'container2', 
       ),
       DishCardData(
         name: 'MENUDO',
         imagePath: 'assets/images/menudo.png',
-        containerKey: 'container3', // This looks at container3
+        containerKey: 'container3', 
       ),
     ];
 
@@ -49,7 +51,7 @@ class DashboardContent extends StatelessWidget {
 class DishCardData {
   final String name;
   final String imagePath;
-  final String containerKey; // Store the ID (e.g. 'container1')
+  final String containerKey; 
 
   const DishCardData({
     required this.name, 
@@ -64,14 +66,18 @@ class DishStatusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 2. CONNECT TO THE SPECIFIC CONTAINER IN FIREBASE
-    final dbRef = FirebaseDatabase.instance.ref().child('containers/${data.containerKey}');
+    // 2. CONNECT TO THE SPECIFIC CONTAINER USING THE SHARED URL
+    // We use instanceFor + kDatabaseURL to match graph.dart perfectly
+    final dbRef = FirebaseDatabase.instanceFor(
+      app: Firebase.app(),
+      databaseURL: kDatabaseURL, // <--- THE FIX IS HERE
+    ).ref().child('containers/${data.containerKey}');
 
     return StreamBuilder(
-      stream: dbRef.onValue, // Listen to changes
+      stream: dbRef.onValue, 
       builder: (context, snapshot) {
         
-        // Default placeholders (if loading or no data)
+        // Default placeholders 
         String v135 = '--';
         String v136 = '--';
         String v137 = '--';
@@ -85,7 +91,7 @@ class DishStatusCard extends StatelessWidget {
         }
 
         return Container(
-          height: 120, // Increased slightly to fit 3 lines of text
+          height: 120, 
           decoration: BoxDecoration(
             color: const Color(0xFF00B250),
             borderRadius: BorderRadius.circular(22),
@@ -121,7 +127,7 @@ class DishStatusCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 6),
                       
-                      // STATUS (Placeholder for now)
+                      // STATUS 
                       const Text(
                         'Status: Monitoring',
                         style: TextStyle(
@@ -173,7 +179,7 @@ class DishStatusCard extends StatelessWidget {
     );
   }
 
-  // Helper widget to stack "Label" and "Value" neatly
+  // Helper widget 
   Widget _sensorColumn(String label, String value) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
