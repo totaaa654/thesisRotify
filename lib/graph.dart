@@ -5,6 +5,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'constants.dart'; // ✅ Import this to prevent the "Red Screen" crash
 
+
 class LiveSensorGraph extends StatefulWidget {
   const LiveSensorGraph({super.key});
 
@@ -13,6 +14,9 @@ class LiveSensorGraph extends StatefulWidget {
 }
 
 class _LiveSensorGraphState extends State<LiveSensorGraph> {
+
+  // Define it once at the top level or as a static variable
+  static final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
   // --- 1. STATIC MEMORY (These survive even when you switch tabs!) ---
   static final Map<String, List<FlSpot>> _globalData = {
     'c1_135': [], 'c1_136': [], 'c1_137': [],
@@ -59,10 +63,7 @@ class _LiveSensorGraphState extends State<LiveSensorGraph> {
 
   void _setupBackgroundListeners() {
     // Use the SAFE constant URL
-    final dbRef = FirebaseDatabase.instanceFor(
-      app: Firebase.app(),
-      databaseURL: kDatabaseURL, 
-    ).ref();
+    final dbRef = FirebaseDatabase.instance.ref();
 
     for (int c = 1; c <= 3; c++) {
       for (int s in [135, 136, 137]) {
