@@ -13,7 +13,8 @@ class AuthService {
       switch (e.code) {
         case 'user-not-found': return 'No user found for that email.';
         case 'wrong-password': return 'Incorrect password.';
-        case 'invalid-email': return 'Invalid email.';
+        case 'invalid-email': return 'Invalid email address.';
+        case 'user-disabled': return 'This user account has been disabled.';
         default: return e.message ?? 'Login failed.';
       }
     }
@@ -24,7 +25,13 @@ class AuthService {
       await _auth.createUserWithEmailAndPassword(email: email, password: password);
       return null;
     } on FirebaseAuthException catch (e) {
-      return e.message;
+      // BETTER ERROR HANDLING FOR SIGNUP
+      switch (e.code) {
+        case 'email-already-in-use': return 'This email is already registered.';
+        case 'invalid-email': return 'The email address is not valid.';
+        case 'weak-password': return 'The password provided is too weak.';
+        default: return e.message;
+      }
     }
   }
 
@@ -60,7 +67,6 @@ class AuthService {
     }
   }
 
-  // UPDATED FOR SETTINGS COMPATIBILITY
   Future<String?> updatePassword(String newPassword, String currentPassword) async {
     try {
       final user = _auth.currentUser;
@@ -85,7 +91,10 @@ class AuthService {
       final user = _auth.currentUser;
       if (user == null) return 'No user logged in';
       await user.updateDisplayName(newName);
-      await user.reload();
+      
+      // CRITICAL: Always reload the user to sync local state with Firebase
+      await user.reload(); 
+      
       return 'Name updated successfully.';
     } on FirebaseAuthException catch (e) {
       return e.message ?? 'Failed to update name.';
@@ -98,6 +107,15 @@ class AuthService {
       return null;
     } on FirebaseAuthException catch (e) {
       return e.message;
+    }
+  }
+
+  // OPTIONAL: Delete account if Firestore fails during signup
+  Future<void> deleteCurrentUser() async {
+    try {
+      await _auth.currentUser?.delete();
+    } catch (e) {
+      print("Error deleting user: $e");
     }
   }
 }
