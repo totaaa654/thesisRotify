@@ -58,11 +58,12 @@ class _SignupPageState extends State<SignupPage> {
                   ),
                   const SizedBox(height: 26),
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
                         child: _labelAndField(
                             controller: firstNameController,
-                            label: 'First Name',
+                            label: 'First Name *',
                             hint: 'First Name'),
                       ),
                       const SizedBox(width: 14),
@@ -77,19 +78,19 @@ class _SignupPageState extends State<SignupPage> {
                   const SizedBox(height: 14),
                   _labelAndField(
                       controller: lastNameController,
-                      label: 'Last Name',
+                      label: 'Last Name *',
                       hint: 'Last Name'),
                   const SizedBox(height: 14),
                   _labelAndField(
                       controller: emailController,
-                      label: 'Email',
+                      label: 'Email *',
                       hint: 'Email',
                       keyboardType: TextInputType.emailAddress),
                   const SizedBox(height: 14),
                   _labelAndField(
                       controller: passwordController,
-                      label: 'Password',
-                      hint: 'Password',
+                      label: 'Password *',
+                      hint: 'At least 6 characters',
                       obscure: true),
                   const SizedBox(height: 24),
                   SizedBox(
@@ -143,22 +144,41 @@ class _SignupPageState extends State<SignupPage> {
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
 
-    // ... validation logic stays the same ...
+    // 1. Check for empty required fields
+    if (firstName.isEmpty || lastName.isEmpty || email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill in all required fields (*)'),
+          backgroundColor: Color.fromARGB(255, 255, 82, 82),
+        ),
+      );
+      return;
+    }
+
+    // 2. ENFORCED: Password minimum of 6 characters
+    if (password.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Password must be at least 6 characters long.'),
+          backgroundColor: Color.fromARGB(255, 255, 82, 82),
+        ),
+      );
+      return; 
+    }
 
     setState(() => _isLoading = true);
 
     try {
-      // 1. Sign up in Firebase Auth
+      // 3. Sign up in Firebase Auth
       final authError = await _authService.signUp(email, password);
       if (authError != null) {
-        throw authError; // This goes to the catch block
+        throw authError; 
       }
 
-      // 2. Update display name (Wait for this to finish)
+      // 4. Update display name
       await _authService.updateDisplayName('$firstName $lastName');
 
-      // 3. Save to Firestore 
-      // TIP: Check if your 'users' collection in Firestore allows this write!
+      // 5. Save to Firestore 
       await _dbService.createUser(
         firstName: firstName,
         middleName: middleName.isEmpty ? null : middleName,
@@ -166,7 +186,7 @@ class _SignupPageState extends State<SignupPage> {
         email: email,
       );
 
-      // 4. Success! Reset loading BEFORE navigating
+      // 6. Success!
       if (mounted) {
         setState(() => _isLoading = false);
         
@@ -177,26 +197,18 @@ class _SignupPageState extends State<SignupPage> {
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => const HomeNav()),
-          (route) => false, // Clears the navigation stack
+          (route) => false, 
         );
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoading = false); // STOP LOADING ON ERROR
+        setState(() => _isLoading = false); 
         
-        // Detailed error for debugging
         print("SIGNUP ERROR: $e");
         
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Signup failed: ${e.toString()}')),
         );
-      }
-      
-      // Safety: Only delete if Auth succeeded but Firestore failed
-      final currentUser = FirebaseAuth.instance.currentUser;
-      if (currentUser != null) {
-        // Optional: you can choose to leave the user created 
-        // or delete it to allow them to try again.
       }
     }
   }
