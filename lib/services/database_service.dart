@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class DatabaseService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  /// ================= CREATE USER =================
+  // ================= CREATE USER =================
   /// Save user info after signup
   Future<void> createUser({
     required String firstName,
@@ -14,7 +14,6 @@ class DatabaseService {
   }) async {
     try {
       final uid = FirebaseAuth.instance.currentUser!.uid;
-
       await _db.collection('users').doc(uid).set({
         'firstName': firstName,
         'middleName': middleName ?? '',
@@ -23,21 +22,18 @@ class DatabaseService {
         'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      // Throw the error so the signup handler can catch it
       throw 'Failed to create user: $e';
     }
   }
 
-  /// ================= GET FIRST NAME =================
+  // ================= GET FIRST NAME =================
   /// Fetch first name for greeting
   Future<String> getFirstName() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return 'User';
-
     try {
       final doc = await _db.collection('users').doc(uid).get();
       if (!doc.exists) return 'User';
-
       final data = doc.data()!;
       return data['firstName'] ?? 'User';
     } catch (e) {
@@ -45,12 +41,13 @@ class DatabaseService {
     }
   }
 
-  /// ================= UPDATE USER =================
-  /// Update first name, middle name, or last name later
+  // ================= UPDATE USER =================
+  /// Update first name, middle name, last name, or email
   Future<void> updateUser({
     String? firstName,
     String? middleName,
     String? lastName,
+    String? email, // <-- added email
   }) async {
     final uid = FirebaseAuth.instance.currentUser!.uid;
     final Map<String, dynamic> updateData = {};
@@ -58,6 +55,7 @@ class DatabaseService {
     if (firstName != null) updateData['firstName'] = firstName;
     if (middleName != null) updateData['middleName'] = middleName;
     if (lastName != null) updateData['lastName'] = lastName;
+    if (email != null) updateData['email'] = email; // <-- update email
 
     if (updateData.isNotEmpty) {
       try {
