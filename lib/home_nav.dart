@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dashboard_content.dart';
 import 'settings.dart';
+import 'graph.dart';
 
 class HomeNav extends StatefulWidget {
   const HomeNav({super.key});
@@ -162,20 +163,18 @@ class _NavItem extends StatelessWidget {
   }
 }
 
+  // =================================================
+  // HISTORY PLACEHOLDER
+  // =================================================
 // =================================================
-// HISTORY PLACEHOLDER
+// HISTORY TAB (Now showing your Graph)
 // =================================================
 class HistoryContent extends StatelessWidget {
   const HistoryContent({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Text(
-        'History\n(sensor logs later)',
-        textAlign: TextAlign.center,
-        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-      ),
-    );
+    // We keep the container clean, but put the Graph widget inside!
+    return const LiveSensorGraph(); 
   }
 }

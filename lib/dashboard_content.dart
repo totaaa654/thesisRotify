@@ -1,21 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_database/firebase_database.dart';
 
 class DashboardContent extends StatelessWidget {
   const DashboardContent({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // ✅ Dummy list (backend later)
+    // ✅ 1. WE ADDED 'containerKey' TO LINK DISHES TO DATABASE
     final items = [
       DishCardData(
         name: 'CHICKEN CURRY',
         imagePath: 'assets/images/chicken_curry.png',
+        containerKey: 'container1', // This looks at container1 in Firebase
       ),
       DishCardData(
         name: 'BICOL EXPRESS',
         imagePath: 'assets/images/bicol_express.png',
+        containerKey: 'container2', // This looks at container2
       ),
-      DishCardData(name: 'MENUDO', imagePath: 'assets/images/menudo.png'),
+      DishCardData(
+        name: 'MENUDO',
+        imagePath: 'assets/images/menudo.png',
+        containerKey: 'container3', // This looks at container3
+      ),
     ];
 
     return Column(
@@ -42,9 +49,13 @@ class DashboardContent extends StatelessWidget {
 class DishCardData {
   final String name;
   final String imagePath;
+  final String containerKey; // Store the ID (e.g. 'container1')
 
-  // later: final String status; final int ppm;
-  const DishCardData({required this.name, required this.imagePath});
+  const DishCardData({
+    required this.name, 
+    required this.imagePath,
+    required this.containerKey,
+  });
 }
 
 class DishStatusCard extends StatelessWidget {
@@ -53,80 +64,129 @@ class DishStatusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ placeholders for now (backend later)
-    const String statusText = 'Status: --';
-    const String ppmText = '-- ppm';
+    // 2. CONNECT TO THE SPECIFIC CONTAINER IN FIREBASE
+    final dbRef = FirebaseDatabase.instance.ref().child('containers/${data.containerKey}');
 
-    return Container(
-      height: 108,
-      decoration: BoxDecoration(
-        color: const Color(0xFF00B250), // green card color
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Stack(
-        children: [
-          // Left text
-          Positioned.fill(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 14, 110, 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    data.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 14,
-                      letterSpacing: 0.6,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    statusText,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    ppmText,
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+    return StreamBuilder(
+      stream: dbRef.onValue, // Listen to changes
+      builder: (context, snapshot) {
+        
+        // Default placeholders (if loading or no data)
+        String v135 = '--';
+        String v136 = '--';
+        String v137 = '--';
 
-          // Right circular photo area (like your screenshot)
-          Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 10),
-              child: Container(
-                width: 86,
-                height: 86,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-                padding: const EdgeInsets.all(8),
-                child: ClipOval(
-                  child: Image.asset(data.imagePath, fit: BoxFit.cover),
+        // 3. EXTRACT REAL DATA
+        if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
+          final values = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+          v135 = values['mq135']?.toString() ?? '--';
+          v136 = values['mq136']?.toString() ?? '--';
+          v137 = values['mq137']?.toString() ?? '--';
+        }
+
+        return Container(
+          height: 120, // Increased slightly to fit 3 lines of text
+          decoration: BoxDecoration(
+            color: const Color(0xFF00B250),
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.green.withOpacity(0.3),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              )
+            ],
+          ),
+          child: Stack(
+            children: [
+              // Left text area
+              Positioned.fill(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 14, 100, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // TITLE
+                      Text(
+                        data.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 15,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      
+                      // STATUS (Placeholder for now)
+                      const Text(
+                        'Status: Monitoring',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Divider(color: Colors.white24, height: 12),
+
+                      // REAL SENSOR DATA ROW
+                      Row(
+                        children: [
+                          _sensorColumn('MQ135', v135),
+                          const SizedBox(width: 12),
+                          _sensorColumn('MQ136', v136),
+                          const SizedBox(width: 12),
+                          _sensorColumn('MQ137', v137),
+                        ],
+                      )
+                    ],
+                  ),
                 ),
               ),
-            ),
+
+              // Right circular photo
+              Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: ClipOval(
+                      child: Image.asset(data.imagePath, fit: BoxFit.cover),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
+    );
+  }
+
+  // Helper widget to stack "Label" and "Value" neatly
+  Widget _sensorColumn(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label, 
+          style: const TextStyle(color: Colors.white54, fontSize: 9, fontWeight: FontWeight.bold)
+        ),
+        Text(
+          value, 
+          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)
+        ),
+      ],
     );
   }
 }
