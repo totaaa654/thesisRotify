@@ -137,6 +137,7 @@ class _SignupPageState extends State<SignupPage> {
   }
 
   // ================= SIGN UP HANDLER =================
+
   void _handleSignup() async {
     final firstName = firstNameController.text.trim();
     final middleName = middleNameController.text.trim();
@@ -145,25 +146,19 @@ class _SignupPageState extends State<SignupPage> {
     final password = passwordController.text.trim();
 
     // 1. Check for empty required fields
-    if (firstName.isEmpty || lastName.isEmpty || email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please fill in all required fields (*)'),
-          backgroundColor: Color.fromARGB(255, 255, 82, 82),
-        ),
-      );
-      return;
+    if (firstName.isEmpty ||
+        lastName.isEmpty ||
+        email.isEmpty ||
+        password.isEmpty) {
+      _showErrorSnackBar('Please fill in all required fields (*)');
+      return; // STOP HERE
     }
 
     // 2. ENFORCED: Password minimum of 6 characters
+    // This is the "Hard Gate" - it will not proceed to Firebase if this fails
     if (password.length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password must be at least 6 characters long.'),
-          backgroundColor: Color.fromARGB(255, 255, 82, 82),
-        ),
-      );
-      return; 
+      _showErrorSnackBar('Password must be at least 6 characters long.');
+      return; // STOP HERE - Do not sign up
     }
 
     setState(() => _isLoading = true);
@@ -171,25 +166,29 @@ class _SignupPageState extends State<SignupPage> {
     try {
       // 3. Sign up in Firebase Auth
       final authError = await _authService.signUp(email, password);
+
       if (authError != null) {
-        throw authError; 
+        // If Firebase returns an error (like email-already-in-use)
+        setState(() => _isLoading = false);
+        _showErrorSnackBar(authError);
+        return;
       }
 
       // 4. Update display name
       await _authService.updateDisplayName('$firstName $lastName');
 
-      // 5. Save to Firestore 
+      // 5. Save to Firestore
       await _dbService.createUser(
         firstName: firstName,
         middleName: middleName.isEmpty ? null : middleName,
         lastName: lastName,
-        email: email,
+        email: email, // This saves the EXACT casing for your login rule
       );
 
       // 6. Success!
       if (mounted) {
         setState(() => _isLoading = false);
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Signup successful!')),
         );
@@ -197,20 +196,26 @@ class _SignupPageState extends State<SignupPage> {
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => const HomeNav()),
-          (route) => false, 
+          (route) => false,
         );
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoading = false); 
-        
-        print("SIGNUP ERROR: $e");
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Signup failed: ${e.toString()}')),
-        );
+        setState(() => _isLoading = false);
+        _showErrorSnackBar('Signup failed: ${e.toString()}');
       }
     }
+  }
+
+  // Helper to keep code clean
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: const Color.fromARGB(255, 255, 82, 82),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   // ================= HELPER WIDGET =================
@@ -224,7 +229,8 @@ class _SignupPageState extends State<SignupPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+        Text(label,
+            style: const TextStyle(color: Colors.white70, fontSize: 12)),
         const SizedBox(height: 6),
         TextField(
           controller: controller,
