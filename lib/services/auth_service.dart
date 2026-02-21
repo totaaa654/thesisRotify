@@ -7,20 +7,23 @@ class AuthService {
   User? get currentUser => _auth.currentUser;
 
   /// ✅ CASE-SENSITIVE LOGIN
-  /// This checks if the casing matches exactly what was registered.
   Future<String?> signInStrict(String inputEmail, String password) async {
     try {
-      // 1. Firebase standard login (case-insensitive)
       UserCredential credential = await _auth.signInWithEmailAndPassword(
           email: inputEmail, password: password);
 
-      // 2. Get the exact email stored in Firebase
       String? officialEmail = credential.user?.email;
 
-      // 3. Compare the typed email with the official email
+      // Case-sensitive check
       if (officialEmail != inputEmail) {
-        await signOut(); // Kick them out if casing is wrong
+        await signOut();
         return 'Email casing is incorrect. Please use the exact casing used during registration.';
+      }
+
+      // 🔥 EMAIL VERIFICATION CHECK (ADDED)
+      if (!credential.user!.emailVerified) {
+        await signOut();
+        return 'Please verify your email before logging in.';
       }
 
       return null; // Success
@@ -40,7 +43,7 @@ class AuthService {
     }
   }
 
-  // Standard sign in (backwards compatibility)
+  // Standard sign in
   Future<String?> signIn(String email, String password) async {
     try {
       await _auth.signInWithEmailAndPassword(email: email, password: password);
@@ -50,10 +53,16 @@ class AuthService {
     }
   }
 
+  // 🔥 UPDATED SIGN UP (SENDS VERIFICATION EMAIL)
   Future<String?> signUp(String email, String password) async {
     try {
-      await _auth.createUserWithEmailAndPassword(
-          email: email, password: password);
+      UserCredential credential =
+          await _auth.createUserWithEmailAndPassword(
+              email: email, password: password);
+
+      // Send verification email
+      await credential.user?.sendEmailVerification();
+
       return null;
     } on FirebaseAuthException catch (e) {
       switch (e.code) {
@@ -71,20 +80,18 @@ class AuthService {
 
   Future<void> signOut() async => await _auth.signOut();
 
-  /// ✅ RESTORED: Update Display Name
   Future<String?> updateDisplayName(String newName) async {
     try {
       final user = _auth.currentUser;
       if (user == null) return 'No user logged in';
       await user.updateDisplayName(newName);
       await user.reload();
-      return null; // Success
+      return null;
     } on FirebaseAuthException catch (e) {
       return e.message ?? 'Failed to update name.';
     }
   }
 
-  /// ✅ RESTORED: Update Email
   Future<String?> updateEmail(String newEmail, String currentPassword) async {
     try {
       final user = _auth.currentUser;
@@ -115,7 +122,6 @@ class AuthService {
     }
   }
 
-  /// ✅ RESTORED: Update Password
   Future<String?> updatePassword(
       String newPassword, String currentPassword) async {
     try {
@@ -126,11 +132,12 @@ class AuthService {
         email: user.email!,
         password: currentPassword,
       );
+
       await user.reauthenticateWithCredential(credential);
       await user.updatePassword(newPassword);
       await user.reload();
 
-      return null; // Success (change logic in settings.dart if it expects a string)
+      return null;
     } on FirebaseAuthException catch (e) {
       return e.message ?? 'Failed to update password.';
     }
@@ -145,3 +152,4 @@ class AuthService {
     }
   }
 }
+

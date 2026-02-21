@@ -139,74 +139,68 @@ class _SignupPageState extends State<SignupPage> {
   // ================= SIGN UP HANDLER =================
 
   void _handleSignup() async {
-    final firstName = firstNameController.text.trim();
-    final middleName = middleNameController.text.trim();
-    final lastName = lastNameController.text.trim();
-    final email = emailController.text.trim();
-    final password = passwordController.text.trim();
+  final firstName = firstNameController.text.trim();
+  final middleName = middleNameController.text.trim();
+  final lastName = lastNameController.text.trim();
+  final email = emailController.text.trim();
+  final password = passwordController.text.trim();
 
-    // 1. Check for empty required fields
-    if (firstName.isEmpty ||
-        lastName.isEmpty ||
-        email.isEmpty ||
-        password.isEmpty) {
-      _showErrorSnackBar('Please fill in all required fields (*)');
-      return; // STOP HERE
-    }
-
-    // 2. ENFORCED: Password minimum of 6 characters
-    // This is the "Hard Gate" - it will not proceed to Firebase if this fails
-    if (password.length < 6) {
-      _showErrorSnackBar('Password must be at least 6 characters long.');
-      return; // STOP HERE - Do not sign up
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      // 3. Sign up in Firebase Auth
-      final authError = await _authService.signUp(email, password);
-
-      if (authError != null) {
-        // If Firebase returns an error (like email-already-in-use)
-        setState(() => _isLoading = false);
-        _showErrorSnackBar(authError);
-        return;
-      }
-
-      // 4. Update display name
-      await _authService.updateDisplayName('$firstName $lastName');
-
-      // 5. Save to Firestore
-      await _dbService.createUser(
-        firstName: firstName,
-        middleName: middleName.isEmpty ? null : middleName,
-        lastName: lastName,
-        email: email, // This saves the EXACT casing for your login rule
-      );
-
-      // 6. Success!
-      if (mounted) {
-        setState(() => _isLoading = false);
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Signup successful!')),
-        );
-
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const HomeNav()),
-          (route) => false,
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        _showErrorSnackBar('Signup failed: ${e.toString()}');
-      }
-    }
+  if (firstName.isEmpty ||
+      lastName.isEmpty ||
+      email.isEmpty ||
+      password.isEmpty) {
+    _showErrorSnackBar('Please fill in all required fields (*)');
+    return;
   }
 
+  if (password.length < 6) {
+    _showErrorSnackBar('Password must be at least 6 characters long.');
+    return;
+  }
+
+  setState(() => _isLoading = true);
+
+  try {
+    final authError = await _authService.signUp(email, password);
+
+    if (authError != null) {
+      setState(() => _isLoading = false);
+      _showErrorSnackBar(authError);
+      return;
+    }
+
+    await _authService.updateDisplayName('$firstName $lastName');
+
+    await _dbService.createUser(
+      firstName: firstName,
+      middleName: middleName.isEmpty ? null : middleName,
+      lastName: lastName,
+      email: email,
+    );
+
+    // 🔥 SIGN OUT UNTIL VERIFIED
+    await _authService.signOut();
+
+    if (mounted) {
+      setState(() => _isLoading = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Verification email sent to $email.\nPlease verify before logging in.',
+          ),
+        ),
+      );
+
+      Navigator.pop(context); // Back to login
+    }
+  } catch (e) {
+    if (mounted) {
+      setState(() => _isLoading = false);
+      _showErrorSnackBar('Signup failed: ${e.toString()}');
+    }
+  }
+}
   // Helper to keep code clean
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
