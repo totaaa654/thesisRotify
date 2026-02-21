@@ -35,7 +35,6 @@ class _LoginPageState extends State<LoginPage> {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 28),
               child: SingleChildScrollView(
-                // Added scroll view to prevent overflow on small screens
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -81,7 +80,9 @@ class _LoginPageState extends State<LoginPage> {
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
-                        onPressed: () {},
+                        onPressed: () {
+                          // TODO: implement forgot password
+                        },
                         child: const Text('forgot password?',
                             style: TextStyle(color: Colors.white70)),
                       ),
@@ -135,7 +136,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // ✅ UPDATED Sign-in handler with Case Sensitivity Check
+  // ================= SIGN-IN HANDLER =================
   void _handleSignIn() async {
     final emailInput = emailController.text.trim();
     final password = passwordController.text.trim();
@@ -148,40 +149,24 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Attempt standard Firebase login
-      final error = await _authService.signIn(emailInput, password);
+      // Use the strict login that checks case-sensitivity AND email verification
+      final error = await _authService.signInStrict(emailInput, password);
 
       if (!mounted) return;
 
-      if (error == null) {
-        // 2. SUCCESSFUL LOGIN - Now check for Case Sensitivity
-        final user = _authService.currentUser;
-
-        // 3. Compare typed email exactly with the one registered in Firebase
-        if (user != null && user.email != emailInput) {
-          // ❌ The casing doesn't match!
-          await _authService.signOut(); // Kick them out immediately
-
-          setState(() => _isLoading = false);
-          _showSnackBar(
-              'Email casing is incorrect. Use the exact email from sign up.',
-              Colors.redAccent);
-          return;
-        }
-
-        // ✅ EXACT MATCH - Proceed to Home
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const HomeNav()),
-        );
-      } else {
-        // ❌ Firebase Error (Wrong password, user not found, etc.)
+      if (error != null) {
         _showSnackBar(error, Colors.redAccent);
+        return;
       }
+
+      // ✅ Login successful
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeNav()),
+      );
     } catch (e) {
       if (!mounted) return;
-      _showSnackBar(
-          'Something went wrong. Please try again.', Colors.redAccent);
+      _showSnackBar('Something went wrong. Please try again.', Colors.redAccent);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
