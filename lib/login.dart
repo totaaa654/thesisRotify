@@ -15,6 +15,7 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController passwordController = TextEditingController();
 
   bool _isLoading = false;
+  bool _rememberMe = false; // ✅ Added this back for tracking
 
   @override
   Widget build(BuildContext context) {
@@ -75,18 +76,40 @@ class _LoginPageState extends State<LoginPage> {
                       hint: 'Password',
                       obscure: true,
                     ),
-                    const SizedBox(height: 8),
-
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () {
-                          // TODO: implement forgot password
-                        },
-                        child: const Text('forgot password?',
-                            style: TextStyle(color: Colors.white70)),
-                      ),
+                    
+                    // ✅ ADDED CHECKBOX SECTION BACK
+                    Row(
+                      children: [
+                        SizedBox(
+                          height: 40,
+                          width: 40,
+                          child: Checkbox(
+                            value: _rememberMe,
+                            activeColor: Colors.white,
+                            checkColor: const Color(0xFF0B6B3A),
+                            side: const BorderSide(color: Colors.white70),
+                            onChanged: (value) {
+                              setState(() {
+                                _rememberMe = value ?? false;
+                              });
+                            },
+                          ),
+                        ),
+                        const Text(
+                          "Keep me logged in",
+                          style: TextStyle(color: Colors.white70, fontSize: 14),
+                        ),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: () {
+                            // TODO: implement forgot password
+                          },
+                          child: const Text('forgot password?',
+                              style: TextStyle(color: Colors.white70)),
+                        ),
+                      ],
                     ),
+
                     const SizedBox(height: 14),
 
                     // SIGN IN BUTTON
@@ -149,8 +172,8 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
 
     try {
-      // Use the strict login that checks case-sensitivity AND email verification
-      final error = await _authService.signInStrict(emailInput, password);
+      // ✅ FIXED: Now passing 3 arguments (Email, Password, RememberMe)
+      final error = await _authService.signInStrict(emailInput, password, _rememberMe);
 
       if (!mounted) return;
 

@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
-
 import 'package:flutter/material.dart';
-import 'home_page.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -25,13 +23,12 @@ class _SplashScreenState extends State<SplashScreen>
   late final Animation<double> _textBlur;
 
   Timer? _holdTimer;
-  Timer? _navTimer;
 
   @override
   void initState() {
     super.initState();
 
-    // Total animation after hold (slower but clean)
+    // Total animation duration
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 4200),
@@ -67,19 +64,18 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     ]).animate(_controller);
 
-    // TEXT slide (subtle) mostly during phase 1
-    _textSlide =
-        Tween<Offset>(
-          begin: const Offset(0.00, 0),
-          end: const Offset(0.10, 0),
-        ).animate(
-          CurvedAnimation(
-            parent: _controller,
-            curve: const Interval(0.00, 0.45, curve: Curves.easeInOutCubic),
-          ),
-        );
+    // TEXT slide (subtle)
+    _textSlide = Tween<Offset>(
+      begin: const Offset(0.00, 0),
+      end: const Offset(0.10, 0),
+    ).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.00, 0.45, curve: Curves.easeInOutCubic),
+      ),
+    );
 
-    // TEXT reveal (mask) ONLY in phase 1
+    // TEXT reveal (mask)
     _textReveal = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
@@ -87,77 +83,45 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
 
-    // TEXT opacity: fade IN in phase 1, fade OUT in phase 2, stay 0 in phase 3
+    // TEXT opacity: fade IN, fade OUT, stay 0
     _textOpacity = TweenSequence<double>([
-      // fade in
       TweenSequenceItem(
-        tween: Tween<double>(
-          begin: 0.0,
-          end: 1.0,
-        ).chain(CurveTween(curve: Curves.easeOut)),
+        tween: Tween<double>(begin: 0.0, end: 1.0).chain(CurveTween(curve: Curves.easeOut)),
         weight: 35,
       ),
-
-      // stay visible a bit
       TweenSequenceItem(tween: ConstantTween<double>(1.0), weight: 10),
-
-      // fade out while logo returns center
       TweenSequenceItem(
-        tween: Tween<double>(
-          begin: 1.0,
-          end: 0.0,
-        ).chain(CurveTween(curve: Curves.easeIn)),
+        tween: Tween<double>(begin: 1.0, end: 0.0).chain(CurveTween(curve: Curves.easeIn)),
         weight: 50,
       ),
-
-      // remain hidden
       TweenSequenceItem(tween: ConstantTween<double>(0.0), weight: 30),
     ]).animate(_controller);
 
-    // TEXT blur: blur->clear in phase 1, then blur again as it disappears
+    // TEXT blur
     _textBlur = TweenSequence<double>([
-      // blur to clear
       TweenSequenceItem(
-        tween: Tween<double>(
-          begin: 16.0,
-          end: 0.0,
-        ).chain(CurveTween(curve: Curves.easeOutCubic)),
+        tween: Tween<double>(begin: 16.0, end: 0.0).chain(CurveTween(curve: Curves.easeOutCubic)),
         weight: 45,
       ),
-
-      // subtle blur while fading out
       TweenSequenceItem(
-        tween: Tween<double>(
-          begin: 0.0,
-          end: 10.0,
-        ).chain(CurveTween(curve: Curves.easeInCubic)),
+        tween: Tween<double>(begin: 0.0, end: 10.0).chain(CurveTween(curve: Curves.easeInCubic)),
         weight: 25,
       ),
-
-      // keep blurred (opacity is 0 anyway)
       TweenSequenceItem(tween: ConstantTween<double>(10.0), weight: 30),
     ]).animate(_controller);
 
-    // HOLD logo first
-    _holdTimer = Timer(const Duration(seconds: 3), () {
+    // Trigger the animation sequence
+    _holdTimer = Timer(const Duration(seconds: 2), () {
       if (!mounted) return;
       _controller.forward();
     });
-
-    // Navigate after: 3s hold + 4.2s anim + buffer
-    _navTimer = Timer(const Duration(milliseconds: 7600), () {
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const HomePage()),
-      );
-    });
+    
+    // NOTE: Navigation is now handled by StreamBuilder in main.dart
   }
 
   @override
   void dispose() {
     _holdTimer?.cancel();
-    _navTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -179,13 +143,10 @@ class _SplashScreenState extends State<SplashScreen>
           child: Stack(
             alignment: Alignment.center,
             children: [
-              // LOGO: left -> center -> up
               SlideTransition(
                 position: _logoMove,
                 child: Image.asset('assets/images/logo.png', width: 140),
               ),
-
-              // TEXT: reveal + blur + fade, then disappears
               SlideTransition(
                 position: _textSlide,
                 child: AnimatedBuilder(
@@ -229,4 +190,3 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 }
-
