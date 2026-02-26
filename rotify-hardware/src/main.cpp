@@ -30,12 +30,26 @@ FirebaseConfig config;
 unsigned long lastLogTime = 0;
 const unsigned long logInterval = 30000; // 30 seconds
 
+int readStable(int pin)
+{
+  analogRead(pin); // throwaway read
+  delay(2);
+
+  long total = 0;
+  for (int i = 0; i < 10; i++)
+  {
+    total += analogRead(pin);
+    delay(2);
+  }
+  return total / 10;
+}
+
 void selectChannel(uint8_t channel)
 {
-  digitalWrite(S0, channel & 0x01);
-  digitalWrite(S1, channel & 0x02);
-  digitalWrite(S2, channel & 0x04);
-  digitalWrite(S3, channel & 0x08);
+  digitalWrite(S0, (channel >> 0) & 0x01);
+  digitalWrite(S1, (channel >> 1) & 0x01);
+  digitalWrite(S2, (channel >> 2) & 0x01);
+  digitalWrite(S3, (channel >> 3) & 0x01);
 }
 
 void setup()
@@ -88,8 +102,8 @@ void loop()
       selectChannel(ch);
 
       // Keeping your specific timing logic here
-      delayMicroseconds(20);
-      int value = analogRead(MUX_SIG);
+      delay(5);
+      int value = readStable(MUX_SIG);
 
       // --- YOUR MAPPING LOGIC FOR 9 SENSORS ---
       int containerNum = (ch % 3) + 1; // 0,3,6 -> C1 | 1,4,7 -> C2 | 2,5,8 -> C3
