@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'home_nav.dart';
 import '../services/auth_service.dart';
 
@@ -11,20 +12,26 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final AuthService _authService = AuthService();
-  
-  // Controllers defined here to persist through rebuilds
+
+  // Controllers
   late TextEditingController emailController;
   late TextEditingController passwordController;
 
+  // State variables
   bool _isLoading = false;
-  bool _rememberMe = false; // This is the value we need to protect
+  bool _rememberMe = false;
   bool _obscurePassword = true;
+
+  // Registered emails from Firebase
+  List<String> registeredEmails = [];
 
   @override
   void initState() {
     super.initState();
     emailController = TextEditingController();
     passwordController = TextEditingController();
+
+    _loadRegisteredEmails(); // Fetch emails from Firestore
   }
 
   @override
@@ -32,6 +39,22 @@ class _LoginPageState extends State<LoginPage> {
     emailController.dispose();
     passwordController.dispose();
     super.dispose();
+  }
+
+  // Fetch emails from Firestore "users" collection
+  void _loadRegisteredEmails() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance.collection('users').get();
+
+      setState(() {
+        registeredEmails = snapshot.docs
+            .map((doc) => doc['email'] as String)
+            .toList();
+      });
+    } catch (e) {
+      // Could log error if needed
+      debugPrint("Error fetching registered emails: $e");
+    }
   }
 
   @override
@@ -73,15 +96,10 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     const SizedBox(height: 32),
 
-                    // Email Field
+                    // Email Field with Firebase autocomplete
                     const Text('Email', style: TextStyle(color: Colors.white70)),
                     const SizedBox(height: 6),
-                    _inputField(
-                      key: const ValueKey('emailField'),
-                      controller: emailController,
-                      hint: 'Email',
-                      keyboardType: TextInputType.emailAddress,
-                    ),
+                    _emailFieldWithAutocomplete(),
                     const SizedBox(height: 18),
 
                     // Password Field
@@ -94,21 +112,21 @@ class _LoginPageState extends State<LoginPage> {
                       obscure: _obscurePassword,
                       isPassword: true,
                       onToggleVisibility: () {
-                        // This setState triggers a full page rebuild
                         setState(() {
                           _obscurePassword = !_obscurePassword;
                         });
                       },
                     ),
 
-                    // ✅ REMEMBER ME SECTION (The Fix)
+                    const SizedBox(height: 12),
+
+                    // Remember Me + Forgot Password
                     Row(
                       children: [
                         SizedBox(
                           height: 40,
                           width: 40,
                           child: StatefulBuilder(
-                            // This isolates the checkbox so the password toggle doesn't reset it
                             builder: (context, setInnerState) {
                               return Checkbox(
                                 key: const ValueKey('rememberMeCheckbox'),
@@ -118,9 +136,7 @@ class _LoginPageState extends State<LoginPage> {
                                 side: const BorderSide(color: Colors.white70),
                                 onChanged: (value) {
                                   bool newValue = value ?? false;
-                                  // Update the internal builder state
                                   setInnerState(() => _rememberMe = newValue);
-                                  // Update the parent class state
                                   setState(() => _rememberMe = newValue);
                                 },
                               );
@@ -157,8 +173,7 @@ class _LoginPageState extends State<LoginPage> {
                           shape: const StadiumBorder(),
                         ),
                         child: _isLoading
-                            ? const CircularProgressIndicator(
-                                color: Color(0xFF0B6B3A))
+                            ? const CircularProgressIndicator(color: Color(0xFF0B6B3A))
                             : const Text(
                                 'SIGN IN',
                                 style: TextStyle(
@@ -191,50 +206,42 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  void _handleSignIn() async {
-    final emailInput = emailController.text.trim();
-    final password = passwordController.text.trim();
-
-    if (emailInput.isEmpty || password.isEmpty) {
-      _showSnackBar('Please enter email and password', Colors.redAccent);
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      // Passing the _rememberMe boolean to your AuthService
-      final error = await _authService.signInStrict(emailInput, password, _rememberMe);
-
-      if (!mounted) return;
-
-      if (error != null) {
-        _showSnackBar(error, Colors.redAccent);
-        return;
-      }
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const HomeNav()),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      _showSnackBar('Something went wrong. Please try again.', Colors.redAccent);
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  void _showSnackBar(String message, Color bgColor) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: bgColor,
-      ),
+  // Email field with autocomplete from Firebase
+  Widget _emailFieldWithAutocomplete() {
+    return Autocomplete<String>(
+      optionsBuilder: (TextEditingValue textEditingValue) {
+        if (textEditingValue.text.isEmpty) {
+          return const Iterable<String>.empty();
+        }
+        return registeredEmails.where(
+          (email) => email.toLowerCase().contains(textEditingValue.text.toLowerCase()),
+        );
+      },
+      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+        emailController = controller;
+        return TextField(
+          controller: controller,
+          focusNode: focusNode,
+          keyboardType: TextInputType.emailAddress,
+          decoration: InputDecoration(
+            hintText: 'Email',
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        );
+      },
+      onSelected: (String selection) {
+        emailController.text = selection;
+      },
     );
   }
 
+  // Regular input field for password
   Widget _inputField({
     Key? key,
     required TextEditingController controller,
@@ -267,6 +274,49 @@ class _LoginPageState extends State<LoginPage> {
                 onPressed: onToggleVisibility,
               )
             : null,
+      ),
+    );
+  }
+
+  void _handleSignIn() async {
+    final emailInput = emailController.text.trim();
+    final password = passwordController.text.trim();
+
+    if (emailInput.isEmpty || password.isEmpty) {
+      _showSnackBar('Please enter email and password', Colors.redAccent);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final error = await _authService.signInStrict(emailInput, password, _rememberMe);
+
+      if (!mounted) return;
+
+      if (error != null) {
+        _showSnackBar(error, Colors.redAccent);
+        return;
+      }
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeNav()),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showSnackBar('Something went wrong. Please try again.', Colors.redAccent);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showSnackBar(String message, Color bgColor) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: bgColor,
       ),
     );
   }
