@@ -11,11 +11,28 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final AuthService _authService = AuthService();
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController passwordController = TextEditingController();
+  
+  // Controllers defined here to persist through rebuilds
+  late TextEditingController emailController;
+  late TextEditingController passwordController;
 
   bool _isLoading = false;
-  bool _rememberMe = false; // ✅ Added this back for tracking
+  bool _rememberMe = false; // This is the value we need to protect
+  bool _obscurePassword = true;
+
+  @override
+  void initState() {
+    super.initState();
+    emailController = TextEditingController();
+    passwordController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,8 +58,8 @@ class _LoginPageState extends State<LoginPage> {
                   children: [
                     const SizedBox(height: 40),
                     Center(
-                        child:
-                            Image.asset('assets/images/logo.png', width: 80)),
+                      child: Image.asset('assets/images/logo.png', width: 80),
+                    ),
                     const SizedBox(height: 24),
                     const Center(
                       child: Text(
@@ -56,42 +73,57 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     const SizedBox(height: 32),
 
-                    // Email
-                    const Text('Email',
-                        style: TextStyle(color: Colors.white70)),
+                    // Email Field
+                    const Text('Email', style: TextStyle(color: Colors.white70)),
                     const SizedBox(height: 6),
                     _inputField(
+                      key: const ValueKey('emailField'),
                       controller: emailController,
                       hint: 'Email',
                       keyboardType: TextInputType.emailAddress,
                     ),
                     const SizedBox(height: 18),
 
-                    // Password
-                    const Text('Password',
-                        style: TextStyle(color: Colors.white70)),
+                    // Password Field
+                    const Text('Password', style: TextStyle(color: Colors.white70)),
                     const SizedBox(height: 6),
                     _inputField(
+                      key: const ValueKey('passwordField'),
                       controller: passwordController,
                       hint: 'Password',
-                      obscure: true,
+                      obscure: _obscurePassword,
+                      isPassword: true,
+                      onToggleVisibility: () {
+                        // This setState triggers a full page rebuild
+                        setState(() {
+                          _obscurePassword = !_obscurePassword;
+                        });
+                      },
                     ),
-                    
-                    // ✅ ADDED CHECKBOX SECTION BACK
+
+                    // ✅ REMEMBER ME SECTION (The Fix)
                     Row(
                       children: [
                         SizedBox(
                           height: 40,
                           width: 40,
-                          child: Checkbox(
-                            value: _rememberMe,
-                            activeColor: Colors.white,
-                            checkColor: const Color(0xFF0B6B3A),
-                            side: const BorderSide(color: Colors.white70),
-                            onChanged: (value) {
-                              setState(() {
-                                _rememberMe = value ?? false;
-                              });
+                          child: StatefulBuilder(
+                            // This isolates the checkbox so the password toggle doesn't reset it
+                            builder: (context, setInnerState) {
+                              return Checkbox(
+                                key: const ValueKey('rememberMeCheckbox'),
+                                value: _rememberMe,
+                                activeColor: Colors.white,
+                                checkColor: const Color(0xFF0B6B3A),
+                                side: const BorderSide(color: Colors.white70),
+                                onChanged: (value) {
+                                  bool newValue = value ?? false;
+                                  // Update the internal builder state
+                                  setInnerState(() => _rememberMe = newValue);
+                                  // Update the parent class state
+                                  setState(() => _rememberMe = newValue);
+                                },
+                              );
                             },
                           ),
                         ),
@@ -159,7 +191,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // ================= SIGN-IN HANDLER =================
   void _handleSignIn() async {
     final emailInput = emailController.text.trim();
     final password = passwordController.text.trim();
@@ -172,7 +203,7 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
 
     try {
-      // ✅ FIXED: Now passing 3 arguments (Email, Password, RememberMe)
+      // Passing the _rememberMe boolean to your AuthService
       final error = await _authService.signInStrict(emailInput, password, _rememberMe);
 
       if (!mounted) return;
@@ -182,7 +213,6 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      // ✅ Login successful
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const HomeNav()),
@@ -195,7 +225,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // Helper to show SnackBar
   void _showSnackBar(String message, Color bgColor) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -206,14 +235,17 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // Input field helper
-  static Widget _inputField({
+  Widget _inputField({
+    Key? key,
     required TextEditingController controller,
     required String hint,
     bool obscure = false,
     TextInputType keyboardType = TextInputType.text,
+    bool isPassword = false,
+    VoidCallback? onToggleVisibility,
   }) {
     return TextField(
+      key: key,
       controller: controller,
       obscureText: obscure,
       keyboardType: keyboardType,
@@ -221,12 +253,20 @@ class _LoginPageState extends State<LoginPage> {
         hintText: hint,
         filled: true,
         fillColor: Colors.white,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
+        suffixIcon: isPassword
+            ? IconButton(
+                icon: Icon(
+                  obscure ? Icons.visibility_off : Icons.visibility,
+                  color: Colors.grey,
+                ),
+                onPressed: onToggleVisibility,
+              )
+            : null,
       ),
     );
   }
