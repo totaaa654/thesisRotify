@@ -135,94 +135,114 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   // ================= CHANGE PASSWORD DIALOG =================
-  // ================= CHANGE PASSWORD DIALOG =================
-  void _showChangePasswordDialog() {
-    final TextEditingController currentPassController = TextEditingController();
-    final TextEditingController newPassController = TextEditingController();
-    bool isObscure = true;
+void _showChangePasswordDialog() {
+  final TextEditingController currentPassController = TextEditingController();
+  final TextEditingController newPassController = TextEditingController();
 
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text("Change Password"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: currentPassController,
-                obscureText: isObscure,
-                decoration:
-                    const InputDecoration(labelText: "Current Password"),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: newPassController,
-                obscureText: isObscure,
-                decoration: InputDecoration(
-                  labelText: "New Password",
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                        isObscure ? Icons.visibility_off : Icons.visibility),
-                    onPressed: () =>
-                        setDialogState(() => isObscure = !isObscure),
+  bool isObscureCurrent = true;
+  bool isObscureNew = true;
+
+  showDialog(
+    context: context,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        title: const Text("Change Password"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // CURRENT PASSWORD FIELD
+            TextField(
+              controller: currentPassController,
+              obscureText: isObscureCurrent,
+              decoration: InputDecoration(
+                labelText: "Current Password",
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    isObscureCurrent
+                        ? Icons.visibility_off
+                        : Icons.visibility,
+                  ),
+                  onPressed: () => setDialogState(
+                    () => isObscureCurrent = !isObscureCurrent,
                   ),
                 ),
               ),
-            ],
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Cancel")),
-            ElevatedButton(
-              onPressed: () async {
-                final curPass = currentPassController.text.trim();
-                final newPass = newPassController.text.trim();
+            ),
+            const SizedBox(height: 12),
 
-                // 1. Basic empty check
-                if (curPass.isEmpty || newPass.isEmpty) {
-                  _showSnackBar("Please fill in both fields", Colors.redAccent);
-                  return;
-                }
-
-                // 2. SAME PASSWORD CHECK
-                if (curPass == newPass) {
-                  _showSnackBar(
-                      "New password cannot be the same as your current password.",
-                      Colors.redAccent);
-                  return; // Stop execution here
-                }
-
-                // 3. MINIMUM LENGTH CHECK (Matching your signup rule)
-                if (newPass.length < 6) {
-                  _showSnackBar("New password must be at least 6 characters.",
-                      Colors.redAccent);
-                  return;
-                }
-
-                final result =
-                    await _authService.updatePassword(newPass, curPass);
-
-                if (mounted) {
-                  if (result == null) {
-                    // Success (result is null because we updated AuthService to return null on success)
-                    Navigator.pop(context);
-                    _showSnackBar("Password updated successfully!",
-                        const Color(0xFF00B250));
-                  } else {
-                    // Firebase Error (e.g., Wrong current password)
-                    _showSnackBar(result, Colors.redAccent);
-                  }
-                }
-              },
-              child: const Text("Save"),
+            // NEW PASSWORD FIELD
+            TextField(
+              controller: newPassController,
+              obscureText: isObscureNew,
+              decoration: InputDecoration(
+                labelText: "New Password",
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    isObscureNew
+                        ? Icons.visibility_off
+                        : Icons.visibility,
+                  ),
+                  onPressed: () => setDialogState(
+                    () => isObscureNew = !isObscureNew,
+                  ),
+                ),
+              ),
             ),
           ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final curPass = currentPassController.text.trim();
+              final newPass = newPassController.text.trim();
+
+              if (curPass.isEmpty || newPass.isEmpty) {
+                _showSnackBar("Please fill in both fields", Colors.redAccent);
+                return;
+              }
+
+              if (curPass == newPass) {
+                _showSnackBar(
+                  "New password cannot be the same as your current password.",
+                  Colors.redAccent,
+                );
+                return;
+              }
+
+              if (newPass.length < 6) {
+                _showSnackBar(
+                  "New password must be at least 6 characters.",
+                  Colors.redAccent,
+                );
+                return;
+              }
+
+              final result =
+                  await _authService.updatePassword(newPass, curPass);
+
+              if (mounted) {
+                if (result == null) {
+                  Navigator.pop(context);
+                  _showSnackBar(
+                    "Password updated successfully!",
+                    const Color(0xFF00B250),
+                  );
+                } else {
+                  _showSnackBar(result, Colors.redAccent);
+                }
+              }
+            },
+            child: const Text("Save"),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   // Small helper to keep things tidy
   void _showSnackBar(String message, Color color) {
