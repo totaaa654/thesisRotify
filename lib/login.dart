@@ -30,7 +30,6 @@ class _LoginPageState extends State<LoginPage> {
     super.initState();
     emailController = TextEditingController();
     passwordController = TextEditingController();
-
     _loadRegisteredEmails(); // Fetch emails from Firestore
   }
 
@@ -44,15 +43,13 @@ class _LoginPageState extends State<LoginPage> {
   // Fetch emails from Firestore "users" collection
   void _loadRegisteredEmails() async {
     try {
-      final snapshot = await FirebaseFirestore.instance.collection('users').get();
-
+      final snapshot =
+          await FirebaseFirestore.instance.collection('users').get();
       setState(() {
-        registeredEmails = snapshot.docs
-            .map((doc) => doc['email'] as String)
-            .toList();
+        registeredEmails =
+            snapshot.docs.map((doc) => doc['email'] as String).toList();
       });
     } catch (e) {
-      // Could log error if needed
       debugPrint("Error fetching registered emails: $e");
     }
   }
@@ -81,8 +78,8 @@ class _LoginPageState extends State<LoginPage> {
                   children: [
                     const SizedBox(height: 40),
                     Center(
-                      child: Image.asset('assets/images/logo.png', width: 80),
-                    ),
+                        child:
+                            Image.asset('assets/images/logo.png', width: 80)),
                     const SizedBox(height: 24),
                     const Center(
                       child: Text(
@@ -117,7 +114,6 @@ class _LoginPageState extends State<LoginPage> {
                         });
                       },
                     ),
-
                     const SizedBox(height: 12),
 
                     // Remember Me + Forgot Password
@@ -149,15 +145,12 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         const Spacer(),
                         TextButton(
-                          onPressed: () {
-                            // TODO: implement forgot password
-                          },
+                          onPressed: _forgotPassword,
                           child: const Text('forgot password?',
                               style: TextStyle(color: Colors.white70)),
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 14),
 
                     // SIGN IN BUTTON
@@ -214,7 +207,8 @@ class _LoginPageState extends State<LoginPage> {
           return const Iterable<String>.empty();
         }
         return registeredEmails.where(
-          (email) => email.toLowerCase().contains(textEditingValue.text.toLowerCase()),
+          (email) =>
+              email.toLowerCase().contains(textEditingValue.text.toLowerCase()),
         );
       },
       fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
@@ -281,24 +275,18 @@ class _LoginPageState extends State<LoginPage> {
   void _handleSignIn() async {
     final emailInput = emailController.text.trim();
     final password = passwordController.text.trim();
-
     if (emailInput.isEmpty || password.isEmpty) {
       _showSnackBar('Please enter email and password', Colors.redAccent);
       return;
     }
-
     setState(() => _isLoading = true);
-
     try {
       final error = await _authService.signInStrict(emailInput, password, _rememberMe);
-
       if (!mounted) return;
-
       if (error != null) {
         _showSnackBar(error, Colors.redAccent);
         return;
       }
-
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const HomeNav()),
@@ -306,6 +294,24 @@ class _LoginPageState extends State<LoginPage> {
     } catch (e) {
       if (!mounted) return;
       _showSnackBar('Something went wrong. Please try again.', Colors.redAccent);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // Forgot Password Flow
+  void _forgotPassword() async {
+    final email = emailController.text.trim();
+    if (email.isEmpty) {
+      _showSnackBar('Please enter your email first', Colors.redAccent);
+      return;
+    }
+    setState(() => _isLoading = true);
+    try {
+      await _authService.sendPasswordResetEmail(email);
+      _showSnackBar('Password reset email sent! Check your inbox.', Colors.green);
+    } catch (e) {
+      _showSnackBar('Failed to send reset email. Make sure the email is correct.', Colors.redAccent);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

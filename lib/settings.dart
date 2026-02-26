@@ -37,15 +37,25 @@ class _SettingsPageState extends State<SettingsPage> {
               child: const Text("Cancel")),
           ElevatedButton(
             onPressed: () async {
-              if (nameController.text.trim().isEmpty) return;
-              final result = await _authService
-                  .updateDisplayName(nameController.text.trim());
-              if (mounted) {
+              final newName = nameController.text.trim();
+              if (newName.isEmpty) return;
+
+              try {
+                final user = _authService.currentUser;
+                if (user != null) {
+                  await user.updateDisplayName(newName);
+                  await user.reload();
+                }
+
                 Navigator.pop(context);
-                setState(() {}); // Refresh the "Hi User" text
+                setState(() {}); // refresh greeting
+
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                      content: Text(result ?? "Name updated successfully")),
+                  const SnackBar(content: Text("Name updated successfully")),
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("Error: $e")),
                 );
               }
             },
@@ -135,116 +145,124 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   // ================= CHANGE PASSWORD DIALOG =================
-void _showChangePasswordDialog() {
-  final TextEditingController currentPassController = TextEditingController();
-  final TextEditingController newPassController = TextEditingController();
+  void _showChangePasswordDialog() {
+    final TextEditingController currentPassController =
+        TextEditingController();
+    final TextEditingController newPassController = TextEditingController();
 
-  bool isObscureCurrent = true;
-  bool isObscureNew = true;
+    bool isObscureCurrent = true;
+    bool isObscureNew = true;
 
-  showDialog(
-    context: context,
-    builder: (context) => StatefulBuilder(
-      builder: (context, setDialogState) => AlertDialog(
-        title: const Text("Change Password"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // CURRENT PASSWORD FIELD
-            TextField(
-              controller: currentPassController,
-              obscureText: isObscureCurrent,
-              decoration: InputDecoration(
-                labelText: "Current Password",
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    isObscureCurrent
-                        ? Icons.visibility_off
-                        : Icons.visibility,
-                  ),
-                  onPressed: () => setDialogState(
-                    () => isObscureCurrent = !isObscureCurrent,
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text("Change Password"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: currentPassController,
+                obscureText: isObscureCurrent,
+                decoration: InputDecoration(
+                  labelText: "Current Password",
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      isObscureCurrent
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                    ),
+                    onPressed: () => setDialogState(
+                      () => isObscureCurrent = !isObscureCurrent,
+                    ),
                   ),
                 ),
               ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: newPassController,
+                obscureText: isObscureNew,
+                decoration: InputDecoration(
+                  labelText: "New Password",
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      isObscureNew ? Icons.visibility_off : Icons.visibility,
+                    ),
+                    onPressed: () => setDialogState(
+                      () => isObscureNew = !isObscureNew,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancel"),
             ),
-            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: () async {
+                final curPass = currentPassController.text.trim();
+                final newPass = newPassController.text.trim();
 
-            // NEW PASSWORD FIELD
-            TextField(
-              controller: newPassController,
-              obscureText: isObscureNew,
-              decoration: InputDecoration(
-                labelText: "New Password",
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    isObscureNew
-                        ? Icons.visibility_off
-                        : Icons.visibility,
-                  ),
-                  onPressed: () => setDialogState(
-                    () => isObscureNew = !isObscureNew,
-                  ),
-                ),
-              ),
+                if (curPass.isEmpty || newPass.isEmpty) {
+                  _showSnackBar("Please fill in both fields", Colors.redAccent);
+                  return;
+                }
+
+                if (curPass == newPass) {
+                  _showSnackBar(
+                    "New password cannot be the same as your current password.",
+                    Colors.redAccent,
+                  );
+                  return;
+                }
+
+                if (newPass.length < 6) {
+                  _showSnackBar(
+                    "New password must be at least 6 characters.",
+                    Colors.redAccent,
+                  );
+                  return;
+                }
+
+                final result =
+                    await _authService.updatePassword(newPass, curPass);
+
+                if (mounted) {
+                  if (result == null) {
+                    Navigator.pop(context); // close password dialog
+
+                    // Show SnackBar confirmation
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text(
+                              "Password changed successfully. Please log in again."),
+                          backgroundColor: Color(0xFF00B250)),
+                    );
+
+                    // Wait a tiny bit so user sees the SnackBar
+                    await Future.delayed(const Duration(milliseconds: 500));
+
+                    // Sign out and navigate to login
+                    await _authService.signOut();
+                    Navigator.of(context).pushNamedAndRemoveUntil(
+                        '/login', (route) => false);
+                  } else {
+                    _showSnackBar(result, Colors.redAccent);
+                  }
+                }
+              },
+              child: const Text("Save"),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final curPass = currentPassController.text.trim();
-              final newPass = newPassController.text.trim();
-
-              if (curPass.isEmpty || newPass.isEmpty) {
-                _showSnackBar("Please fill in both fields", Colors.redAccent);
-                return;
-              }
-
-              if (curPass == newPass) {
-                _showSnackBar(
-                  "New password cannot be the same as your current password.",
-                  Colors.redAccent,
-                );
-                return;
-              }
-
-              if (newPass.length < 6) {
-                _showSnackBar(
-                  "New password must be at least 6 characters.",
-                  Colors.redAccent,
-                );
-                return;
-              }
-
-              final result =
-                  await _authService.updatePassword(newPass, curPass);
-
-              if (mounted) {
-                if (result == null) {
-                  Navigator.pop(context);
-                  _showSnackBar(
-                    "Password updated successfully!",
-                    const Color(0xFF00B250),
-                  );
-                } else {
-                  _showSnackBar(result, Colors.redAccent);
-                }
-              }
-            },
-            child: const Text("Save"),
-          ),
-        ],
       ),
-    ),
-  );
-}
+    );
+  }
 
-  // Small helper to keep things tidy
+  // Small helper to show SnackBars
   void _showSnackBar(String message, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: color),
@@ -266,7 +284,6 @@ void _showChangePasswordDialog() {
             onPressed: () async {
               await _authService.signOut();
               if (mounted) {
-                // Adjust '/login' to your actual login route name or use MaterialPageRoute
                 Navigator.of(context)
                     .pushNamedAndRemoveUntil('/login', (route) => false);
               }
