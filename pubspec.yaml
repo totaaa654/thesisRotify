@@ -13,17 +13,24 @@ dependencies:
   firebase_core: ^4.4.0
   firebase_auth: ^6.1.4
   cloud_firestore: 6.1.2
-  firebase_database: 12.1.3  # Check for the latest version
-  fl_chart: ^0.66.0           # Awesome charting library
+  firebase_database: 12.1.3
+  fl_chart: ^0.66.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/app_logo.png"
+  adaptive_icon_background: "#ffffff"
 
 flutter:
   uses-material-design: true
 
   assets:
     - assets/images/
+    - assets/app_logo.png
