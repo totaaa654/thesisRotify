@@ -1,4 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart'; // For debugPrint
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -6,25 +8,30 @@ class AuthService {
   // Getter to get current user data
   User? get currentUser => _auth.currentUser;
 
-  /// ✅ CASE-SENSITIVE LOGIN
-  Future<String?> signInStrict(String inputEmail, String password) async {
+  /// ✅ CASE-SENSITIVE LOGIN WITH MANUAL PERSISTENCE
+  Future<String?> signInStrict(String inputEmail, String password, bool rememberMe) async {
     try {
+      // 1. Perform the sign in
       UserCredential credential = await _auth.signInWithEmailAndPassword(
           email: inputEmail, password: password);
 
       String? officialEmail = credential.user?.email;
 
-      // Case-sensitive check
+      // 2. Case-sensitive check
       if (officialEmail != inputEmail) {
-        await signOut();
+        await _auth.signOut();
         return 'Email casing is incorrect. Please use the exact casing used during registration.';
       }
 
-      // 🔥 EMAIL VERIFICATION CHECK (ADDED)
-      if (!credential.user!.emailVerified) {
-        await signOut();
+      // 3. Email verification check
+      if (credential.user != null && !credential.user!.emailVerified) {
+        await _auth.signOut();
         return 'Please verify your email before logging in.';
       }
+
+      // 4. ✅ SAVE PERSISTENCE CHOICE
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('remember_me', rememberMe);
 
       return null; // Success
     } on FirebaseAuthException catch (e) {
@@ -40,36 +47,66 @@ class AuthService {
         default:
           return e.message ?? 'Login failed.';
       }
+    } catch (e) {
+      return 'An unexpected error occurred.';
     }
   }
 
-  // Standard sign in
-  Future<String?> signIn(String email, String password) async {
+  /// ✅ ADDED: UPDATE PASSWORD (Fixes Settings error)
+  /// Requires current password for re-authentication (Firebase safety requirement)
+  Future<String?> updatePassword(String newPassword, String currentPassword) async {
     try {
-      await _auth.signInWithEmailAndPassword(email: email, password: password);
-      return null;
+      final user = _auth.currentUser;
+      if (user == null) return 'No user logged in';
+
+      // Re-authentication is mandatory for sensitive security changes
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: currentPassword,
+      );
+
+      await user.reauthenticateWithCredential(credential);
+      await user.updatePassword(newPassword);
+      await user.reload();
+
+      return null; // Success
     } on FirebaseAuthException catch (e) {
-      return e.message ?? 'Login failed.';
+      switch (e.code) {
+        case 'wrong-password':
+          return 'The current password provided is incorrect.';
+        case 'weak-password':
+          return 'The new password is too weak.';
+        default:
+          return e.message ?? 'Failed to update password.';
+      }
+    } catch (e) {
+      return 'An unexpected error occurred.';
     }
   }
 
-  // 🔥 UPDATED SIGN UP (SENDS VERIFICATION EMAIL)
+  /// ✅ UPDATED SIGN OUT
+  Future<void> signOut() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('remember_me', false); // Reset the flag
+      await _auth.signOut();
+    } catch (e) {
+      debugPrint("Error signing out: $e");
+    }
+  }
+
+  /// SIGN UP (Sends verification email)
   Future<String?> signUp(String email, String password) async {
     try {
-      UserCredential credential =
-          await _auth.createUserWithEmailAndPassword(
-              email: email, password: password);
+      UserCredential credential = await _auth.createUserWithEmailAndPassword(
+          email: email, password: password);
 
-      // Send verification email
       await credential.user?.sendEmailVerification();
-
       return null;
     } on FirebaseAuthException catch (e) {
       switch (e.code) {
         case 'email-already-in-use':
           return 'This email is already registered.';
-        case 'invalid-email':
-          return 'The email address is not valid.';
         case 'weak-password':
           return 'The password provided is too weak.';
         default:
@@ -78,8 +115,17 @@ class AuthService {
     }
   }
 
-  Future<void> signOut() async => await _auth.signOut();
+  /// RESET PASSWORD
+  Future<String?> sendPasswordResetEmail(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+      return null;
+    } on FirebaseAuthException catch (e) {
+      return e.message;
+    }
+  }
 
+  /// UPDATE DISPLAY NAME
   Future<String?> updateDisplayName(String newName) async {
     try {
       final user = _auth.currentUser;
@@ -92,6 +138,7 @@ class AuthService {
     }
   }
 
+  /// UPDATE EMAIL (Requires re-authentication)
   Future<String?> updateEmail(String newEmail, String currentPassword) async {
     try {
       final user = _auth.currentUser;
@@ -103,53 +150,10 @@ class AuthService {
       );
 
       await user.reauthenticateWithCredential(credential);
-
-      final actionCodeSettings = ActionCodeSettings(
-        url: 'https://thesis-rotify.firebaseapp.com',
-        handleCodeInApp: true,
-        androidPackageName: 'com.example.rotify_app',
-        androidInstallApp: true,
-        androidMinimumVersion: '1',
-      );
-
-      await user.verifyBeforeUpdateEmail(newEmail, actionCodeSettings);
-      return 'Success: Check $newEmail for a link and try again!';
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'user-mismatch') {
-        return 'Your email is already changed. Please sign in again.';
-      }
-      return e.message;
-    }
-  }
-
-  Future<String?> updatePassword(
-      String newPassword, String currentPassword) async {
-    try {
-      final user = _auth.currentUser;
-      if (user == null) return 'No user logged in';
-
-      final credential = EmailAuthProvider.credential(
-        email: user.email!,
-        password: currentPassword,
-      );
-
-      await user.reauthenticateWithCredential(credential);
-      await user.updatePassword(newPassword);
-      await user.reload();
-
-      return null;
-    } on FirebaseAuthException catch (e) {
-      return e.message ?? 'Failed to update password.';
-    }
-  }
-
-  Future<String?> sendPasswordResetEmail(String email) async {
-    try {
-      await _auth.sendPasswordResetEmail(email: email);
-      return null;
+      await user.verifyBeforeUpdateEmail(newEmail);
+      return 'Success: Check $newEmail for a link!';
     } on FirebaseAuthException catch (e) {
       return e.message;
     }
   }
 }
-

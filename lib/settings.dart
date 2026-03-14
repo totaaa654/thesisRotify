@@ -37,15 +37,25 @@ class _SettingsPageState extends State<SettingsPage> {
               child: const Text("Cancel")),
           ElevatedButton(
             onPressed: () async {
-              if (nameController.text.trim().isEmpty) return;
-              final result = await _authService
-                  .updateDisplayName(nameController.text.trim());
-              if (mounted) {
+              final newName = nameController.text.trim();
+              if (newName.isEmpty) return;
+
+              try {
+                final user = _authService.currentUser;
+                if (user != null) {
+                  await user.updateDisplayName(newName);
+                  await user.reload();
+                }
+
                 Navigator.pop(context);
-                setState(() {}); // Refresh the "Hi User" text
+                setState(() {}); // refresh greeting
+
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                      content: Text(result ?? "Name updated successfully")),
+                  const SnackBar(content: Text("Name updated successfully")),
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("Error: $e")),
                 );
               }
             },
@@ -135,11 +145,13 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   // ================= CHANGE PASSWORD DIALOG =================
-  // ================= CHANGE PASSWORD DIALOG =================
   void _showChangePasswordDialog() {
-    final TextEditingController currentPassController = TextEditingController();
+    final TextEditingController currentPassController =
+        TextEditingController();
     final TextEditingController newPassController = TextEditingController();
-    bool isObscure = true;
+
+    bool isObscureCurrent = true;
+    bool isObscureNew = true;
 
     showDialog(
       context: context,
@@ -151,21 +163,34 @@ class _SettingsPageState extends State<SettingsPage> {
             children: [
               TextField(
                 controller: currentPassController,
-                obscureText: isObscure,
-                decoration:
-                    const InputDecoration(labelText: "Current Password"),
+                obscureText: isObscureCurrent,
+                decoration: InputDecoration(
+                  labelText: "Current Password",
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      isObscureCurrent
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                    ),
+                    onPressed: () => setDialogState(
+                      () => isObscureCurrent = !isObscureCurrent,
+                    ),
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: newPassController,
-                obscureText: isObscure,
+                obscureText: isObscureNew,
                 decoration: InputDecoration(
                   labelText: "New Password",
                   suffixIcon: IconButton(
                     icon: Icon(
-                        isObscure ? Icons.visibility_off : Icons.visibility),
-                    onPressed: () =>
-                        setDialogState(() => isObscure = !isObscure),
+                      isObscureNew ? Icons.visibility_off : Icons.visibility,
+                    ),
+                    onPressed: () => setDialogState(
+                      () => isObscureNew = !isObscureNew,
+                    ),
                   ),
                 ),
               ),
@@ -173,31 +198,32 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Cancel")),
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancel"),
+            ),
             ElevatedButton(
               onPressed: () async {
                 final curPass = currentPassController.text.trim();
                 final newPass = newPassController.text.trim();
 
-                // 1. Basic empty check
                 if (curPass.isEmpty || newPass.isEmpty) {
                   _showSnackBar("Please fill in both fields", Colors.redAccent);
                   return;
                 }
 
-                // 2. SAME PASSWORD CHECK
                 if (curPass == newPass) {
                   _showSnackBar(
-                      "New password cannot be the same as your current password.",
-                      Colors.redAccent);
-                  return; // Stop execution here
+                    "New password cannot be the same as your current password.",
+                    Colors.redAccent,
+                  );
+                  return;
                 }
 
-                // 3. MINIMUM LENGTH CHECK (Matching your signup rule)
                 if (newPass.length < 6) {
-                  _showSnackBar("New password must be at least 6 characters.",
-                      Colors.redAccent);
+                  _showSnackBar(
+                    "New password must be at least 6 characters.",
+                    Colors.redAccent,
+                  );
                   return;
                 }
 
@@ -206,12 +232,24 @@ class _SettingsPageState extends State<SettingsPage> {
 
                 if (mounted) {
                   if (result == null) {
-                    // Success (result is null because we updated AuthService to return null on success)
-                    Navigator.pop(context);
-                    _showSnackBar("Password updated successfully!",
-                        const Color(0xFF00B250));
+                    Navigator.pop(context); // close password dialog
+
+                    // Show SnackBar confirmation
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text(
+                              "Password changed successfully. Please log in again."),
+                          backgroundColor: Color(0xFF00B250)),
+                    );
+
+                    // Wait a tiny bit so user sees the SnackBar
+                    await Future.delayed(const Duration(milliseconds: 500));
+
+                    // Sign out and navigate to login
+                    await _authService.signOut();
+                    Navigator.of(context).pushNamedAndRemoveUntil(
+                        '/login', (route) => false);
                   } else {
-                    // Firebase Error (e.g., Wrong current password)
                     _showSnackBar(result, Colors.redAccent);
                   }
                 }
@@ -224,7 +262,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // Small helper to keep things tidy
+  // Small helper to show SnackBars
   void _showSnackBar(String message, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: color),
@@ -246,7 +284,6 @@ class _SettingsPageState extends State<SettingsPage> {
             onPressed: () async {
               await _authService.signOut();
               if (mounted) {
-                // Adjust '/login' to your actual login route name or use MaterialPageRoute
                 Navigator.of(context)
                     .pushNamedAndRemoveUntil('/login', (route) => false);
               }
