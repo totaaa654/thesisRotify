@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import '../services/database_service.dart';
 
@@ -10,19 +11,51 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  bool notificationsEnabled = true;
+  bool notificationsEnabled = false;
   final AuthService _authService = AuthService();
 
-  // Helper to get the display name
+  @override
+  void initState() {
+    super.initState();
+    _loadNotificationPreference();
+  }
+
+  Future<void> _loadNotificationPreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      notificationsEnabled = prefs.getBool('notifications_enabled') ?? false;
+    });
+  }
+
+  Future<void> _saveNotificationPreference(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('notifications_enabled', value);
+
+    if (!mounted) return;
+    setState(() {
+      notificationsEnabled = value;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          value ? 'Notifications enabled' : 'Notifications disabled',
+        ),
+        backgroundColor: const Color(0xFF00B250),
+      ),
+    );
+  }
+
   String get userName {
     final user = _authService.currentUser;
     if (user == null) return "User";
     return user.displayName ?? "User";
   }
 
-  // ================= CHANGE NAME DIALOG =================
   void _showChangeNameDialog() {
     final TextEditingController nameController = TextEditingController();
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -33,8 +66,9 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancel")),
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
           ElevatedButton(
             onPressed: () async {
               final newName = nameController.text.trim();
@@ -47,13 +81,18 @@ class _SettingsPageState extends State<SettingsPage> {
                   await user.reload();
                 }
 
+                if (!mounted) return;
                 Navigator.pop(context);
-                setState(() {}); // refresh greeting
+                setState(() {});
 
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Name updated successfully")),
+                  const SnackBar(
+                    content: Text("Name updated successfully"),
+                    backgroundColor: Color(0xFF00B250),
+                  ),
                 );
               } catch (e) {
+                if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text("Error: $e")),
                 );
@@ -66,7 +105,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // ================= CHANGE EMAIL DIALOG =================
   void _showChangeEmailDialog() {
     final TextEditingController emailController =
         TextEditingController(text: _authService.currentUser?.email ?? '');
@@ -94,7 +132,8 @@ class _SettingsPageState extends State<SettingsPage> {
                   labelText: "Current Password",
                   suffixIcon: IconButton(
                     icon: Icon(
-                        isObscure ? Icons.visibility_off : Icons.visibility),
+                      isObscure ? Icons.visibility_off : Icons.visibility,
+                    ),
                     onPressed: () =>
                         setDialogState(() => isObscure = !isObscure),
                   ),
@@ -104,36 +143,51 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Cancel")),
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancel"),
+            ),
             ElevatedButton(
               onPressed: () async {
                 final newEmail = emailController.text.trim();
                 final currentPassword = passwordController.text.trim();
+
                 if (newEmail.isEmpty || currentPassword.isEmpty) return;
 
                 final authResult =
                     await _authService.updateEmail(newEmail, currentPassword);
-                if (mounted) {
-                  bool isSuccess =
-                      authResult != null && authResult.contains('Success');
-                  bool isMismatch = authResult != null &&
-                      authResult.contains('already changed');
 
-                  if (isSuccess || isMismatch) {
-                    if (isSuccess)
-                      await DatabaseService().updateUser(email: newEmail);
-                    Navigator.pop(context);
-                    setState(() {});
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(SnackBar(content: Text(authResult!)));
-                    if (isMismatch) await _authService.signOut();
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                          content: Text(authResult ?? "Error updating email")),
-                    );
+                if (!mounted) return;
+
+                final bool isSuccess =
+                    authResult != null && authResult.contains('Success');
+                final bool isMismatch = authResult != null &&
+                    authResult.contains('already changed');
+
+                if (isSuccess || isMismatch) {
+                  if (isSuccess) {
+                    await DatabaseService().updateUser(email: newEmail);
                   }
+
+                  if (!mounted) return;
+                  Navigator.pop(context);
+                  setState(() {});
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(authResult!),
+                      backgroundColor: const Color(0xFF00B250),
+                    ),
+                  );
+
+                  if (isMismatch) {
+                    await _authService.signOut();
+                  }
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(authResult ?? "Error updating email"),
+                    ),
+                  );
                 }
               },
               child: const Text("Save"),
@@ -144,10 +198,8 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // ================= CHANGE PASSWORD DIALOG =================
   void _showChangePasswordDialog() {
-    final TextEditingController currentPassController =
-        TextEditingController();
+    final TextEditingController currentPassController = TextEditingController();
     final TextEditingController newPassController = TextEditingController();
 
     bool isObscureCurrent = true;
@@ -230,28 +282,29 @@ class _SettingsPageState extends State<SettingsPage> {
                 final result =
                     await _authService.updatePassword(newPass, curPass);
 
-                if (mounted) {
-                  if (result == null) {
-                    Navigator.pop(context); // close password dialog
+                if (!mounted) return;
 
-                    // Show SnackBar confirmation
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text(
-                              "Password changed successfully. Please log in again."),
-                          backgroundColor: Color(0xFF00B250)),
-                    );
+                if (result == null) {
+                  Navigator.pop(context);
 
-                    // Wait a tiny bit so user sees the SnackBar
-                    await Future.delayed(const Duration(milliseconds: 500));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        "Password changed successfully. Please log in again.",
+                      ),
+                      backgroundColor: Color(0xFF00B250),
+                    ),
+                  );
 
-                    // Sign out and navigate to login
-                    await _authService.signOut();
-                    Navigator.of(context).pushNamedAndRemoveUntil(
-                        '/login', (route) => false);
-                  } else {
-                    _showSnackBar(result, Colors.redAccent);
-                  }
+                  await Future.delayed(const Duration(milliseconds: 500));
+
+                  await _authService.signOut();
+
+                  if (!mounted) return;
+                  Navigator.of(context)
+                      .pushNamedAndRemoveUntil('/login', (route) => false);
+                } else {
+                  _showSnackBar(result, Colors.redAccent);
                 }
               },
               child: const Text("Save"),
@@ -262,14 +315,12 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // Small helper to show SnackBars
   void _showSnackBar(String message, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: color),
     );
   }
 
-  // ================= SIGN OUT DIALOG =================
   void _showSignOutDialog() {
     showDialog(
       context: context,
@@ -278,17 +329,20 @@ class _SettingsPageState extends State<SettingsPage> {
         content: const Text("Are you sure you want to sign out of Rotify?"),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancel")),
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
           TextButton(
             onPressed: () async {
               await _authService.signOut();
-              if (mounted) {
-                Navigator.of(context)
-                    .pushNamedAndRemoveUntil('/login', (route) => false);
-              }
+              if (!mounted) return;
+              Navigator.of(context)
+                  .pushNamedAndRemoveUntil('/login', (route) => false);
             },
-            child: const Text("Sign Out", style: TextStyle(color: Colors.red)),
+            child: const Text(
+              "Sign Out",
+              style: TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -300,17 +354,18 @@ class _SettingsPageState extends State<SettingsPage> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
       children: [
-        // Greeting
-        Text("Hi $userName!!",
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+        Text(
+          "Hi $userName!!",
+          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 20),
-
-        // Account Settings Group
         ExpansionTile(
           tilePadding: EdgeInsets.zero,
           leading: const Icon(Icons.person_outline),
-          title: const Text('Account Settings',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+          title: const Text(
+            'Account Settings',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+          ),
           childrenPadding: const EdgeInsets.only(left: 20, bottom: 10),
           children: [
             _ArrowItem(text: 'Change name', onTap: _showChangeNameDialog),
@@ -320,57 +375,67 @@ class _SettingsPageState extends State<SettingsPage> {
           ],
         ),
         const SizedBox(height: 20),
-
-        // Notifications Toggle
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(children: const [
-              Icon(Icons.notifications_none, size: 22),
-              SizedBox(width: 10),
-              Text('Notifications',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-            ]),
+            Row(
+              children: const [
+                Icon(Icons.notifications_none, size: 22),
+                SizedBox(width: 10),
+                Text(
+                  'Notifications',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
             Switch(
               value: notificationsEnabled,
               activeColor: const Color(0xFF00B250),
-              onChanged: (value) =>
-                  setState(() => notificationsEnabled = value),
+              onChanged: (value) async {
+                await _saveNotificationPreference(value);
+              },
             ),
           ],
         ),
         const SizedBox(height: 28),
-
-        // About Section
-        const Row(children: [
-          Icon(Icons.info_outline, size: 22),
-          SizedBox(width: 10),
-          Text('About',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-        ]),
+        const Row(
+          children: [
+            Icon(Icons.info_outline, size: 22),
+            SizedBox(width: 10),
+            Text(
+              'About',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
         const Padding(
           padding: EdgeInsets.only(left: 32, top: 8),
-          child: Text('Rotify\nVersion 1.0.0\nDish Spoilage Detection System',
-              style:
-                  TextStyle(fontSize: 13, color: Colors.black54, height: 1.5)),
+          child: Text(
+            'Rotify\nVersion 1.0.0\nDish Spoilage Detection System',
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.black54,
+              height: 1.5,
+            ),
+          ),
         ),
-
         const SizedBox(height: 40),
-
-        // Sign Out Button
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10),
           child: ElevatedButton.icon(
             onPressed: _showSignOutDialog,
             icon: const Icon(Icons.logout, color: Colors.white),
-            label: const Text("SIGN OUT",
-                style: TextStyle(fontWeight: FontWeight.bold)),
+            label: const Text(
+              "SIGN OUT",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.redAccent,
               foregroundColor: Colors.white,
               minimumSize: const Size(double.infinity, 50),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
         ),
@@ -383,7 +448,11 @@ class _SettingsPageState extends State<SettingsPage> {
 class _ArrowItem extends StatelessWidget {
   final String text;
   final VoidCallback onTap;
-  const _ArrowItem({required this.text, required this.onTap});
+
+  const _ArrowItem({
+    required this.text,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -391,13 +460,19 @@ class _ArrowItem extends StatelessWidget {
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Row(children: [
-          const Icon(Icons.arrow_right, size: 18),
-          const SizedBox(width: 6),
-          Text(text,
-              style:
-                  const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-        ]),
+        child: Row(
+          children: [
+            const Icon(Icons.arrow_right, size: 18),
+            const SizedBox(width: 6),
+            Text(
+              text,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

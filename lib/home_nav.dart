@@ -95,8 +95,8 @@ class _HomeNavState extends State<HomeNav> {
               onTap: () => _onTab(0),
             ),
             _NavItem(
-              icon: Icons.history_rounded,
-              label: 'History',
+              icon: Icons.show_chart_rounded,
+              label: 'Graph',
               selected: _currentIndex == 1,
               onTap: () => _onTab(1),
             ),
@@ -163,9 +163,9 @@ class _NavItem extends StatelessWidget {
   }
 }
 
-  // =================================================
-  // HISTORY PLACEHOLDER
-  // =================================================
+// =================================================
+// HISTORY PLACEHOLDER
+// =================================================
 // =================================================
 // HISTORY TAB (Now showing your Graph)
 // =================================================
@@ -175,6 +175,6 @@ class HistoryContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // We keep the container clean, but put the Graph widget inside!
-    return const LiveSensorGraph(); 
+    return const LiveSensorGraph();
   }
 }

@@ -1,40 +1,41 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'services/notification_service.dart';
 
 class DashboardContent extends StatelessWidget {
   const DashboardContent({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // ✅ 1. WE ADDED 'containerKey' TO LINK DISHES TO DATABASE
     final items = [
       DishCardData(
         name: 'CHICKEN CURRY',
         imagePath: 'assets/images/chicken_curry.png',
-        containerKey: 'container1', // This looks at container1 in Firebase
+        containerKey: 'container1',
       ),
       DishCardData(
         name: 'BICOL EXPRESS',
         imagePath: 'assets/images/bicol_express.png',
-        containerKey: 'container2', // This looks at container2
+        containerKey: 'container2',
       ),
       DishCardData(
         name: 'MENUDO',
         imagePath: 'assets/images/menudo.png',
-        containerKey: 'container3', // This looks at container3
+        containerKey: 'container3',
       ),
     ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const NotificationWatcher(),
         const Text(
           'Dishes',
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 12),
-
-        // Cards
         ...items.map(
           (d) => Padding(
             padding: const EdgeInsets.only(bottom: 14),
@@ -46,13 +47,90 @@ class DashboardContent extends StatelessWidget {
   }
 }
 
+class NotificationWatcher extends StatefulWidget {
+  const NotificationWatcher({super.key});
+
+  @override
+  State<NotificationWatcher> createState() => _NotificationWatcherState();
+}
+
+class _NotificationWatcherState extends State<NotificationWatcher> {
+  StreamSubscription<DatabaseEvent>? _notifSub;
+  final Map<String, String> _lastNotifiedPrediction = {};
+
+  final Map<String, String> _containerDisplayNames = {
+    'container1': 'Chicken Curry',
+    'container2': 'Bicol Express',
+    'container3': 'Menudo',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _startNotificationListener();
+  }
+
+  void _startNotificationListener() {
+    final dbRef = FirebaseDatabase.instance.ref().child('containers');
+
+    _notifSub = dbRef.onValue.listen((event) async {
+      final prefs = await SharedPreferences.getInstance();
+      final notificationsEnabled =
+          prefs.getBool('notifications_enabled') ?? false;
+
+      if (!notificationsEnabled) return;
+
+      final raw = event.snapshot.value;
+      if (raw == null || raw is! Map) return;
+
+      final allContainers = raw as Map<dynamic, dynamic>;
+
+      for (final entry in allContainers.entries) {
+        final containerKey = entry.key.toString();
+        final containerData = entry.value;
+
+        if (containerData is Map<dynamic, dynamic>) {
+          final prediction =
+              containerData['prediction']?.toString().toUpperCase() ?? '';
+
+          if (prediction == 'MID' || prediction == 'SPOILED') {
+            final lastPrediction = _lastNotifiedPrediction[containerKey];
+
+            if (lastPrediction != prediction) {
+              _lastNotifiedPrediction[containerKey] = prediction;
+
+              await NotificationService.showSpoilageNotification(
+                container: _containerDisplayNames[containerKey] ?? containerKey,
+                prediction: prediction,
+              );
+            }
+          } else {
+            _lastNotifiedPrediction.remove(containerKey);
+          }
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _notifSub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox.shrink();
+  }
+}
+
 class DishCardData {
   final String name;
   final String imagePath;
-  final String containerKey; // Store the ID (e.g. 'container1')
+  final String containerKey;
 
   const DishCardData({
-    required this.name, 
+    required this.name,
     required this.imagePath,
     required this.containerKey,
   });
@@ -64,20 +142,18 @@ class DishStatusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 2. CONNECT TO THE SPECIFIC CONTAINER IN FIREBASE
-    final dbRef = FirebaseDatabase.instance.ref().child('containers/${data.containerKey}');
+    final dbRef = FirebaseDatabase.instance
+        .ref()
+        .child('containers/${data.containerKey}');
 
     return StreamBuilder(
-      stream: dbRef.onValue, // Listen to changes
+      stream: dbRef.onValue,
       builder: (context, snapshot) {
-        
-        // Default placeholders (if loading or no data)
         String v135 = '--';
         String v136 = '--';
         String v137 = '--';
         String status = 'Monitoring';
 
-        // 3. EXTRACT REAL DATA
         if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
           final values = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
           v135 = values['mq135']?.toString() ?? '--';
@@ -87,7 +163,7 @@ class DishStatusCard extends StatelessWidget {
         }
 
         return Container(
-          height: 120, // Increased slightly to fit 3 lines of text
+          height: 130,
           decoration: BoxDecoration(
             color: const Color(0xFF00B250),
             borderRadius: BorderRadius.circular(22),
@@ -101,7 +177,6 @@ class DishStatusCard extends StatelessWidget {
           ),
           child: Stack(
             children: [
-              // Left text area
               Positioned.fill(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(18, 14, 100, 14),
@@ -109,7 +184,6 @@ class DishStatusCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // TITLE
                       Text(
                         data.name,
                         maxLines: 1,
@@ -122,19 +196,15 @@ class DishStatusCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      
-                      // STATUS (Placeholder for now)
                       Text(
                         'Status: $status',
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const Divider(color: Colors.white24, height: 12),
-
-                      // REAL SENSOR DATA ROW
                       Row(
                         children: [
                           _sensorColumn('MQ135', v135),
@@ -148,8 +218,6 @@ class DishStatusCard extends StatelessWidget {
                   ),
                 ),
               ),
-
-              // Right circular photo
               Align(
                 alignment: Alignment.centerRight,
                 child: Padding(
@@ -175,18 +243,25 @@ class DishStatusCard extends StatelessWidget {
     );
   }
 
-  // Helper widget to stack "Label" and "Value" neatly
   Widget _sensorColumn(String label, String value) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          label, 
-          style: const TextStyle(color: Colors.white54, fontSize: 9, fontWeight: FontWeight.bold)
+          label,
+          style: const TextStyle(
+            color: Colors.white54,
+            fontSize: 9,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         Text(
-          value, 
-          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ],
     );
