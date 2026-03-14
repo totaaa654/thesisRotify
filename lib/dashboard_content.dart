@@ -75,6 +75,7 @@ class DishStatusCard extends StatelessWidget {
         String v135 = '--';
         String v136 = '--';
         String v137 = '--';
+        String status = 'Monitoring';
 
         // 3. EXTRACT REAL DATA
         if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
@@ -82,6 +83,7 @@ class DishStatusCard extends StatelessWidget {
           v135 = values['mq135']?.toString() ?? '--';
           v136 = values['mq136']?.toString() ?? '--';
           v137 = values['mq137']?.toString() ?? '--';
+          status = values['prediction']?.toString() ?? 'Monitoring';
         }
 
         return Container(
@@ -122,8 +124,8 @@ class DishStatusCard extends StatelessWidget {
                       const SizedBox(height: 6),
                       
                       // STATUS (Placeholder for now)
-                      const Text(
-                        'Status: Monitoring',
+                      Text(
+                        'Status: $status',
                         style: TextStyle(
                           color: Colors.white70,
                           fontSize: 12,
