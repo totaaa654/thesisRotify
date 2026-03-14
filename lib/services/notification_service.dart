@@ -58,4 +58,30 @@ class NotificationService {
       details,
     );
   }
+
+  static Future<void> showPollutionNotification({
+    required String container,
+    required int mq135Value,
+  }) async {
+    const androidDetails = AndroidNotificationDetails(
+      'rotify_pollution_alerts',
+      'ROTIFY Pollution Alerts',
+      channelDescription: 'Pollution alerts from MQ135 sensor',
+      importance: Importance.max,
+      priority: Priority.max,
+      playSound: true,
+      enableVibration: true,
+      ticker: 'ROTIFY Pollution Alert',
+      visibility: NotificationVisibility.public,
+    );
+
+    const details = NotificationDetails(android: androidDetails);
+
+    await _notifications.show(
+      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      'ROTIFY Pollution Alert',
+      'Pollution detected in $container (MQ135: $mq135Value).',
+      details,
+    );
+  }
 }

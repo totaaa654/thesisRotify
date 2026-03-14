@@ -56,7 +56,9 @@ class NotificationWatcher extends StatefulWidget {
 
 class _NotificationWatcherState extends State<NotificationWatcher> {
   StreamSubscription<DatabaseEvent>? _notifSub;
+
   final Map<String, String> _lastNotifiedPrediction = {};
+  final Map<String, bool> _lastPollutionState = {};
 
   final Map<String, String> _containerDisplayNames = {
     'container1': 'Chicken Curry',
@@ -90,9 +92,18 @@ class _NotificationWatcherState extends State<NotificationWatcher> {
         final containerData = entry.value;
 
         if (containerData is Map<dynamic, dynamic>) {
+          final displayName =
+              _containerDisplayNames[containerKey] ?? containerKey;
+
           final prediction =
               containerData['prediction']?.toString().toUpperCase() ?? '';
 
+          final mq135Raw = containerData['mq135'];
+          final int mq135 = int.tryParse(mq135Raw?.toString() ?? '0') ?? 0;
+
+          // =========================
+          // SPOILAGE ALERT
+          // =========================
           if (prediction == 'MID' || prediction == 'SPOILED') {
             final lastPrediction = _lastNotifiedPrediction[containerKey];
 
@@ -100,12 +111,30 @@ class _NotificationWatcherState extends State<NotificationWatcher> {
               _lastNotifiedPrediction[containerKey] = prediction;
 
               await NotificationService.showSpoilageNotification(
-                container: _containerDisplayNames[containerKey] ?? containerKey,
+                container: displayName,
                 prediction: prediction,
               );
             }
           } else {
             _lastNotifiedPrediction.remove(containerKey);
+          }
+
+          // =========================
+          // POLLUTION ALERT (MQ135)
+          // =========================
+          const int mq135Threshold = 1; // palitan if needed
+          final bool pollutionDetected = mq135 >= mq135Threshold;
+          final bool lastPollution = _lastPollutionState[containerKey] ?? false;
+
+          if (pollutionDetected && !lastPollution) {
+            _lastPollutionState[containerKey] = true;
+
+            await NotificationService.showPollutionNotification(
+              container: displayName,
+              mq135Value: mq135,
+            );
+          } else if (!pollutionDetected) {
+            _lastPollutionState[containerKey] = false;
           }
         }
       }
@@ -138,6 +167,7 @@ class DishCardData {
 
 class DishStatusCard extends StatelessWidget {
   final DishCardData data;
+
   const DishStatusCard({super.key, required this.data});
 
   @override
@@ -172,7 +202,7 @@ class DishStatusCard extends StatelessWidget {
                 color: Colors.green.withOpacity(0.3),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
-              )
+              ),
             ],
           ),
           child: Stack(
@@ -213,7 +243,7 @@ class DishStatusCard extends StatelessWidget {
                           const SizedBox(width: 12),
                           _sensorColumn('MQ137', v137),
                         ],
-                      )
+                      ),
                     ],
                   ),
                 ),
